@@ -54,7 +54,46 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --yes libsdl3-dev ninja-build
+          sudo apt-get install --yes \
+            build-essential \
+            ninja-build \
+            pkg-config \
+            libasound2-dev \
+            libpulse-dev \
+            libaudio-dev \
+            libfribidi-dev \
+            libjack-dev \
+            libsndio-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrandr-dev \
+            libxcursor-dev \
+            libxfixes-dev \
+            libxi-dev \
+            libxss-dev \
+            libxtst-dev \
+            libxkbcommon-dev \
+            libdrm-dev \
+            libgbm-dev \
+            libgl1-mesa-dev \
+            libgles2-mesa-dev \
+            libegl1-mesa-dev \
+            libdbus-1-dev \
+            libibus-1.0-dev \
+            libudev-dev \
+            libthai-dev \
+            libusb-1.0-0-dev \
+            libpipewire-0.3-dev \
+            libwayland-dev \
+            libdecor-0-dev \
+            liburing-dev
+          git clone --depth 1 --branch release-3.4.16 https://github.com/libsdl-org/SDL.git sdl3
+          cmake -S sdl3 -B sdl3/build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_TESTS=OFF \
+            -DSDL_EXAMPLES=OFF
+          cmake --build sdl3/build --parallel 2
+          sudo cmake --install sdl3/build
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
