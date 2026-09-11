@@ -1,0 +1,7 @@
+{
+    "cmake.buildDirectory": "${workspaceFolder}/cmake-build-debug",
+    "cmake.useCMakePresets": "always",
+    "cmake.configurePreset": "debug",
+    "C_Cpp.default.cStandard": "c23",
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/cmake-build-debug/compile_commands.json"
+}
