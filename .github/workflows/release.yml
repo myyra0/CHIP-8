@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Version must use x.x.x format, for example 1.2.3"
+            exit 1
+          fi
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: validate
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            generator: TGZ
+            artifact: linux
+          - os: macos-latest
+            generator: ZIP
+            artifact: macos
+          - os: windows-latest
+            generator: ZIP
+            artifact: windows
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install CMake
+        uses: lukka/get-cmake@latest
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libsdl3-dev ninja-build
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: brew install sdl3 ninja
+
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: vcpkg install sdl3:x64-windows
+
+      - name: Configure
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCHIP_8_VERSION="$VERSION" \
+            -DCPACK_GENERATOR="${{ matrix.generator }}" \
+            ${{ runner.os == 'Windows' && '-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake' || '' }}
+
+      - name: Build package
+        run: cmake --build build --target package --parallel 2
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.artifact }}
+          path: build/CHIP_8-*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh release create "v$VERSION" dist/CHIP_8-* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "CHIP-8 $VERSION" \
+            --generate-notes
