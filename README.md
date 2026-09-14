@@ -6,14 +6,17 @@ I made this project to have a stronger grasp on the C language and an intro to e
 
 If you want to implement CHIP-8 yourself, I recommend [this guided tutorial](https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#fx0a-get-key). If you prefer a less guided reference, see the [CHIP-8 Technical Reference](http://devernay.free.fr/hacks/chip8/C8TECH10.HTM).
 
+# External Libraries Used
+
+- SDL3
+
 ## AI Use Disclosure
 
-AI assistance was used to implement the SDL audio and keyboard input. The display implementation was written manually. I spent significant time exploring SDL display functionality, which was a bad rabbit hole to jump into, and learning SDL was not the main goal of this project. The focus was learning C and gaining an introduction to this project anyways so i used AI when it came time for the other stuff.
+AI assistance was used to actions.yml
 
 ## TODO
 
 - Add some error handling. There is literally none.
-- Stack Overflow (ifykyk)
 
 ## Requirements
 
