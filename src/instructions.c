@@ -102,20 +102,26 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         }
         case 0x1:
         {
-            // 8XY1 - Set VX to VX OR VY.
+            // 8XY1 - Set VX to VX OR VY. The original interpreter also leaves VF as 0.
             chip8->V[instruction->X] = chip8->V[instruction->X] | chip8->V[instruction->Y];
+            if (!config->super_mode)
+                chip8->V[0xF] = 0;
             break;
         }
         case 0x2:
         {
             // 8XY2 - Set VX to VX AND VY.
             chip8->V[instruction->X] = chip8->V[instruction->X] & chip8->V[instruction->Y];
+            if (!config->super_mode)
+                chip8->V[0xF] = 0;
             break;
         }
         case 0x3:
         {
             // 8XY3 - Set VX to VX XOR VY.
             chip8->V[instruction->X] = chip8->V[instruction->X] ^ chip8->V[instruction->Y];
+            if (!config->super_mode)
+                chip8->V[0xF] = 0;
             break;
         }
         case 0x4:
@@ -241,7 +247,8 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         case 0x9E:
         {
             // EX9E - Skip next instruction if the key in VX is pressed.
-            uint8_t key = chip8->V[instruction->X];
+            // Only the low nibble names a key; anything more would read past keys[].
+            uint8_t key = chip8->V[instruction->X] & 0xF;
             if (chip8->keys[key])
                 chip8->pc += 2;
             break;
@@ -250,7 +257,7 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         case 0xA1:
         {
             // EXA1 - Skip next instruction if the key in VX is not pressed.
-            uint8_t key = chip8->V[instruction->X];
+            uint8_t key = chip8->V[instruction->X] & 0xF;
             if (!chip8->keys[key])
                 chip8->pc += 2;
             break;
@@ -299,17 +306,30 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
 
         case 0x0A:
         {
-            // FX0A - Wait for a key press and store it in VX. This instruction “blocks”.
-            for (uint8_t key = 0; key < 16; key++)
+            // FX0A - Wait for a key to be pressed and released, then store it in VX.
+            // The original hardware moves on when the key comes back up, not when it goes down.
+            if (chip8->key_pending == 0)
             {
-                if (chip8->keys[key])
+                for (uint8_t key = 0; key < 16; key++)
                 {
-                    chip8->V[instruction->X] = key;
-                    return;
+                    if (chip8->keys[key])
+                    {
+                        chip8->key_pending = key + 1;
+                        break;
+                    }
                 }
+                chip8->pc -= 2;
+                break;
             }
 
-            chip8->pc -= 2;
+            if (chip8->keys[chip8->key_pending - 1])
+            {
+                chip8->pc -= 2;
+                break;
+            }
+
+            chip8->V[instruction->X] = chip8->key_pending - 1;
+            chip8->key_pending = 0;
             break;
         }
 
@@ -332,10 +352,13 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         case 0x55:
         {
             // FX55 - Store V0 through VX in memory starting at I.
+            // The original interpreter leaves I pointing past the last byte written.
             for (int i = 0; i <= instruction->X; i++)
             {
                 chip8->memory[chip8->I + i] = chip8->V[i];
             }
+            if (!config->super_mode)
+                chip8->I += instruction->X + 1;
             break;
         }
 
@@ -346,6 +369,8 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
             {
                 chip8->V[i] = chip8->memory[chip8->I + i];
             }
+            if (!config->super_mode)
+                chip8->I += instruction->X + 1;
             break;
         }
         }
