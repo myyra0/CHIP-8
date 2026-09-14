@@ -15,6 +15,7 @@ typedef struct
     uint16_t I;
     uint8_t V[16];
     bool keys[16];
+    uint8_t key_pending; // key seen going down during FX0A, plus one; 0 while none
     bool display[64][32];
     uint8_t delay_timer;
     uint8_t sound_timer;
