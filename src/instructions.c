@@ -210,6 +210,10 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
             if (y_pos + row >= 32)
                 break;
 
+            // Guard: Prevent reading out of memory bounds
+            if (chip8->I + row >= sizeof(chip8->memory))
+                break;
+
             uint8_t sprite_byte = chip8->memory[chip8->I + row];
 
             for (uint8_t col = 0; col < 8; col++)
@@ -242,7 +246,9 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         {
             // EX9E - Skip next instruction if the key in VX is pressed.
             uint8_t key = chip8->V[instruction->X];
-            if (chip8->keys[key])
+
+            // Guard: Prevent array out of bounds read on invalid key IDs
+            if (key < 16 && chip8->keys[key])
                 chip8->pc += 2;
             break;
         }
@@ -251,7 +257,9 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         {
             // EXA1 - Skip next instruction if the key in VX is not pressed.
             uint8_t key = chip8->V[instruction->X];
-            if (!chip8->keys[key])
+
+            // Guard: Invalid keys count as "not pressed"
+            if (key >= 16 || !chip8->keys[key])
                 chip8->pc += 2;
             break;
         }
@@ -323,18 +331,26 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         case 0x33:
         {
             // FX33 - Store the BCD digits of VX at memory[I..I+2].
-            chip8->memory[chip8->I] = chip8->V[instruction->X] / 100;
-            chip8->memory[chip8->I + 1] = (chip8->V[instruction->X] / 10) % 10;
-            chip8->memory[chip8->I + 2] = chip8->V[instruction->X] % 10;
+            // Guard: Prevent buffer overflow write
+            if (chip8->I + 2 < sizeof(chip8->memory))
+            {
+                chip8->memory[chip8->I] = chip8->V[instruction->X] / 100;
+                chip8->memory[chip8->I + 1] = (chip8->V[instruction->X] / 10) % 10;
+                chip8->memory[chip8->I + 2] = chip8->V[instruction->X] % 10;
+            }
             break;
         }
 
         case 0x55:
         {
             // FX55 - Store V0 through VX in memory starting at I.
-            for (int i = 0; i <= instruction->X; i++)
+            // Guard: Prevent buffer overflow write
+            if (chip8->I + instruction->X < sizeof(chip8->memory))
             {
-                chip8->memory[chip8->I + i] = chip8->V[i];
+                for (int i = 0; i <= instruction->X; i++)
+                {
+                    chip8->memory[chip8->I + i] = chip8->V[i];
+                }
             }
             break;
         }
@@ -342,9 +358,13 @@ void execute_instruction(Chip8 *chip8, const Chip8Config *config, const Instruct
         case 0x65:
         {
             // FX65 - Load V0 through VX from memory starting at I.
-            for (int i = 0; i <= instruction->X; i++)
+            // Guard: Prevent out of bounds buffer read
+            if (chip8->I + instruction->X < sizeof(chip8->memory))
             {
-                chip8->V[i] = chip8->memory[chip8->I + i];
+                for (int i = 0; i <= instruction->X; i++)
+                {
+                    chip8->V[i] = chip8->memory[chip8->I + i];
+                }
             }
             break;
         }
