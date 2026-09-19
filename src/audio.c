@@ -11,8 +11,7 @@ static SDL_AudioStream *stream = nullptr;
 static SDL_AtomicInt beeping;
 static double phase = 0.0;
 
-static void SDLCALL audio_callback(void *userdata, SDL_AudioStream *astream,
-                                    int additional_amount, int total_amount)
+static void SDLCALL audio_callback(void *userdata, SDL_AudioStream *astream, int additional_amount, int total_amount)
 {
     (void)userdata;
     (void)total_amount;
@@ -44,7 +43,11 @@ static void SDLCALL audio_callback(void *userdata, SDL_AudioStream *astream,
             }
         }
 
-        SDL_PutAudioStreamData(astream, samples, chunk_bytes);
+        if (!SDL_PutAudioStreamData(astream, samples, chunk_bytes))
+        {
+            SDL_Log("Audio Stream Data Error: %s", SDL_GetError());
+        }
+
         additional_amount -= chunk_bytes;
     }
 }
@@ -66,7 +69,14 @@ bool audio_init()
         return false;
     }
 
-    SDL_ResumeAudioStreamDevice(stream);
+    if (!SDL_ResumeAudioStreamDevice(stream))
+    {
+        SDL_Log("Failed to resume audio stream: %s", SDL_GetError());
+        SDL_DestroyAudioStream(stream);
+        stream = nullptr;
+        return false;
+    }
+
     return true;
 }
 

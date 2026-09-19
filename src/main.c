@@ -34,6 +34,12 @@ const uint8_t fontset[80] = {
 
 static char *parse_arguments(const int argc, char *argv[], Chip8Config *config)
 {
+    if (argc < 2)
+    {
+        printf("Usage: %s <rom_file>\n", argv[0]);
+        return nullptr;
+    }
+
     char *filename = nullptr;
 
     for (int i = 1; i < argc; i++)
@@ -56,18 +62,51 @@ static char *parse_arguments(const int argc, char *argv[], Chip8Config *config)
     return filename;
 }
 
-static void load_rom(Chip8 *chip8, const char *filename)
+static bool load_rom(Chip8 *chip8, const char *filename)
 {
-    FILE *rom = fopen(filename, "rb");
-
-    if (!rom)
+    if (filename == nullptr)
     {
-        printf("Could not open file: %s\n", filename);
-        return;
+        fprintf(stderr, "Error: No ROM file specified.\n");
+        return false;
     }
 
-    fread(chip8->memory + 0x200, 1, sizeof(chip8->memory) - 0x200, rom);
+    FILE *rom = fopen(filename, "rb");
+     if (!rom)
+    {
+        fprintf(stderr, "Error: Could not open file: %s\n", filename);
+        return false;
+    }
+
+    // Determine absolute file size
+    fseek(rom, 0, SEEK_END);
+    long rom_size = ftell(rom);
+    rewind(rom);
+
+    if (rom_size <= 0)
+    {
+        fprintf(stderr, "Error: ROM file is empty or invalid.\n");
+        fclose(rom);
+        return false;
+    }
+
+    const size_t max_size = sizeof(chip8->memory) - 0x200;
+    if (rom_size > (long)max_size)
+    {
+        fprintf(stderr, "Error: ROM exceeds maximum memory (%zu bytes).\n", max_size);
+        fclose(rom);
+        return false;
+    }
+
+    size_t bytes_read = fread(chip8->memory + 0x200, 1, rom_size, rom);
     fclose(rom);
+
+    if (bytes_read != (size_t)rom_size)
+    {
+        fprintf(stderr, "Error: Failed to read the entire ROM.\n");
+        return false;
+    }
+
+    return true;
 }
 
 static void fetch_instruction(Chip8 *chip8, Instruction *instruction)
@@ -113,17 +152,33 @@ int main(const int argc, char *argv[])
     Chip8 chip8 = {.pc = 0x200};
     Chip8Config config = {0};
     Instruction instruction;
+
     char *filename = parse_arguments(argc, argv, &config);
-    load_rom(&chip8, filename);
+
+    if (!load_rom(&chip8, filename))
+    {
+        return EXIT_FAILURE;
+    }
 
     memcpy(&chip8.memory[0x050], fontset, sizeof(fontset));
 
     // SDL Initializations
-    Display disp;
-    display_init(&disp);
-    audio_init();
-    SDL_Event event;
+    Display disp = {0};
+    if (!display_init(&disp))
+    {
+        fprintf(stderr, "Fatal Error: Failed to initialize display subsystem.\n");
+        return EXIT_FAILURE;
+    }
 
+    if (!audio_init())
+    {
+        fprintf(stderr, "Fatal Error: Failed to initialize audio subsystem.\n");
+        display_cleanup(&disp);
+        return EXIT_FAILURE;
+    }
+
+    SDL_Event event;
+    
     uint64_t cpu_timestamp = SDL_GetTicksNS();
     uint64_t timer_timestamp = SDL_GetTicksNS();
 
@@ -131,9 +186,10 @@ int main(const int argc, char *argv[])
     bool running = true;
     while (running)
     {
-        // Watch for program counter overflow
-        if (chip8.pc >= sizeof(chip8.memory) - 1)
+        // Watch for program counter out-of-bounds
+        if (chip8.pc < 0x200 || chip8.pc >= sizeof(chip8.memory) - 1)
         {
+            fprintf(stderr, "Fatal Error: PC out of bounds (0x%04X)\n", chip8.pc);
             running = false;
             break;
         }
@@ -177,9 +233,10 @@ int main(const int argc, char *argv[])
 
         SDL_Delay(1);
     }
+
     // SDL Cleanup
     audio_cleanup();
     display_cleanup(&disp);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
