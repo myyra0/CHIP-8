@@ -14,10 +14,6 @@ If you want to implement CHIP-8 yourself, I recommend [this guided tutorial](htt
 
 AI assistance was used to actions.yml
 
-## TODO
-
-- Add some error handling. There is literally none.
-
 ## Requirements
 
 - CMake 4.3 or later
